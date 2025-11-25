@@ -43,6 +43,7 @@ class GameWatcher:
             # Extract item prices and store in dictionary
             # item_id is a string, convert to int for easier handling later
             # item_info contains all data about the item(price, stats...), we only need the price
+            # Loads price of each itemID into self declared item_prices dict
             for item_id, item_info in items_data.items():
                 # Store the total gold cost of the item
                 self.item_prices[int(item_id)] = item_info['gold']['total']
@@ -54,7 +55,7 @@ class GameWatcher:
             print(f"[Error] Could not load item data: {e}")
             exit(1) # Exit code 1 indicates program finished with error
 
-    def get_live_gold_state(self):
+    def get_live_gold_stats(self):
         """
         Rolls local game client to calculate team gold diff
         """
@@ -74,6 +75,62 @@ class GameWatcher:
             blue_gold = 0
             red_gold = 0
 
-        except Exception as e:
-            print("error")
+            for player in players:
+                # Current gold in inventory of player
+                current_unspent = player["currentGold"]
+                # Inventory value = sum of values of items in inventory
+                inventory_value = 0
 
+                # Item is a list of item objects in player's inventory
+                for item in player["items"]:
+                    item_id = item["itemID"]
+                    # Look up item_id's price in item_prices dict (from GameWatcher class)
+                    inventory_value += self.item_prices.get(item_id, 0)
+
+                # Net worth of player = inventory gold + item value
+                total_value = current_unspent + inventory_value
+
+                # ORDER = internal code for blue side
+                if player["team"] == "ORDER":
+                    blue_gold += total_value
+                else:
+                    red_gold += total_value
+
+            # Return dict (a JSON-like object) with live game state stats
+            return {
+                "timestamp": time.time(),    # Current unix timestamp
+                "blue_total": blue_gold,
+                "red_total": red_gold,
+                "gold_diff": blue_gold - red_gold,
+                "lead_team": "BLUE" if blue_gold > red_gold else "RED"
+            }
+
+        except requests.exceptions.ConnectionError:
+            # Error occurs if script is ran when League client is closed
+            return None
+
+if __name__ == "__main__":
+    # Initialize instance of gamewatcher class
+    watcher = GameWatcher()
+    print("Waiting for League of Legends to start....")
+
+    # Infinite loop to continously check for live stats forever
+    while True:
+        stats = watcher.get_live_gold_stats()
+
+        if stats:
+            # \033[H\033[J is an ANSI code
+            print("\033[H\033[J")
+            print(f"===LIVE GAME STATE===")
+
+            # :, formats numbers with commas (eg. 10000 -> 10,000)
+            print(f"Blue Team: {stats["blue_total"]:,}g")
+            print(f"Red Team: {stats["red_total"]:,}g")
+            print(f"-------------------------------")
+            print(f"GOLD DIFF: {stats['gold_diff']:,} ({stats["lead_team"]} LEADING)")
+        else:
+            # If stats is None (Game closed), print waiting message
+            # end="\r" keeps print on same line, overwriting itself
+            print("Game not found... retrying in 2s", end="\r")
+
+        time.sleep(2)
