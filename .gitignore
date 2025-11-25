@@ -2,7 +2,7 @@
 dragontail-12.6.1
 
 # virtual environment
-venv/
+venv
 .venv/
 env/
 
