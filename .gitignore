@@ -1,1 +1,10 @@
+# dataset from riot client
 dragontail-12.6.1
+
+# virtual environment
+venv/
+.venv/
+env/
+
+# OS junk files
+.DS_Store
